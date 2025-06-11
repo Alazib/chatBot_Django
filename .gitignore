@@ -6,6 +6,6 @@ __pycache__/
 *.py[cod]
 
 # Ignorar ajustes locales
-mysite/settings.py
+chatbot_django/settings.py
 
 

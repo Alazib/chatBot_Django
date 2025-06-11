@@ -1,3 +1,7 @@
 from django.contrib import admin
+from .models import Usuario, Conversacion, Mensaje, Estado
 
-# Register your models here.
+admin.site.register(Usuario)
+admin.site.register(Conversacion)
+admin.site.register(Mensaje)
+admin.site.register(Estado)
