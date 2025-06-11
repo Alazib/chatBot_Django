@@ -6,6 +6,10 @@ name = "pypi"
 [packages]
 django = "*"
 nltk = "*"
+spacy = "*"
+numpy = "*"
+psycopg2 = "*"
+pillow = "*"
 
 [dev-packages]
 
