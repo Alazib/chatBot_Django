@@ -21,8 +21,8 @@ document.getElementById("send-button").addEventListener("click", function () {
   })
     .then((response) => response.json())
     .then((data) => {
-      if (data.respuesta) {
-        addMessageToChat("bot", data.respuesta);
+      if (data.response) {
+        addMessageToChat("bot", data.response);
       }
     });
 });
