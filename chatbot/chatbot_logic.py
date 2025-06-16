@@ -1,13 +1,17 @@
+from .nlp_utils import analizar_texto
 
 def generate_bot_response(user_message):
     
-    user_message = user_message.lower().strip()
+    """Devuelve una respuesta según la intención detectada dinámicamente."""
+    intent = analizar_texto(user_message)
+       # Respuestas para diferentes intenciones
+    responses = {
+        "saludo": "¡Hola! ¿Cómo puedo ayudarte?",
+        "despedida": "¡Hasta luego! Que tengas un buen día.",
+        "pregunta": "¡Parece que tienes una pregunta! ¿En qué puedo ayudarte?",
+        "desconocido": "No entiendo tu mensaje, ¿puedes reformularlo?",
+    }
 
-    if user_message in ['hola', 'buenos días', 'buenas']:
-        return '¡Hola! ¿Cómo puedo ayudarte?'
-    elif 'adiós' in user_message or 'hasta luego' in user_message:
-        return 'Adiós. ¡Que tengas un buen día!'
-    elif 'gracias' in user_message:
-        return '¡De nada! ¿En qué más puedo ayudarte?'
-    else:
-        return 'Lo siento, no he entendido tu mensaje. ¿Puedes reformularlo?'
+    return responses.get(intent, "No entiendo tu mensaje, ¿puedes reformularlo?")
+
+
