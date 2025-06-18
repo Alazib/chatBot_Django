@@ -4,8 +4,8 @@ Este proyecto es un **chatbot básico desarrollado con Django** que utiliza **pr
 El chatbot es capaz de entender entradas en lenguaje natural, procesar fechas, cantidades de personas y otros datos relevantes mediante el uso de la librería **spaCy**.
 
 <p align="center">
-  <img src="assets/Chatbot1.PNG" width="300" />
-  <img src="assets/Chatbot2.PNG" width="300" />
+  <img src="assets/Chatbot1.PNG" width="300" height="400" />
+  <img src="assets/Chatbot2.PNG" width="300" height="400" />
 </p>
 
 
