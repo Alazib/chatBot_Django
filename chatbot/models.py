@@ -33,6 +33,18 @@ class Estado(models.Model):
 
     def __str__(self):
         return f"El estado de Conversacion {self.conversacion} es {self.estado_actual}"
+    
+    
+class Reserva(models.Model):
+    nombre = models.CharField(max_length=100)
+    fecha = models.DateTimeField()
+    numero_personas = models.IntegerField()
+    alergias = models.TextField(blank=True, null=True)
+    telefono = models.CharField(max_length=20)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Reserva de {self.nombre} para {self.numero_personas} personas el {self.fecha.strftime('%d/%m/%Y %H:%M')}"
 
 
 

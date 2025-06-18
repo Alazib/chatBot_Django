@@ -22,6 +22,13 @@ despedidas_sin_reserva = [
     "Encantado de ayudarte. ¡Nos vemos!",
     "Que tengas un buen día. ¡Adiós!"
 ]
+
+# Respuesta a ubicación
+ubicación = "Calle Inventada, Nº12. Madrid"
+    
+
+
+
 # Función principal para gestionar las respuestas del chatbot
 def generate_bot_response(user_input, session_id, memory):
    
@@ -33,7 +40,10 @@ def generate_bot_response(user_input, session_id, memory):
    # Definimos las posibles afirmaciones y despedidas que el bot puede reconocer
     afirmaciones = ["sí", "si", "claro", "por supuesto", "vale", "ok"]
     despedidas = ["adiós", "adios", "hasta luego", "nos vemos", "chao", "chau", "bye", "no gracias", "no, gracias", "no"]
-   # Verificamos si el usuario ha solicitado despedirse
+    
+    
+       # --- Manejo de despedidas ---
+    # Verificamos si el usuario ha solicitado despedirse
     # Sólo permitimos despedidas si no estamos en medio de una reserva
     if user_input.lower() in despedidas and estado not in [
         "esperando_dia", "esperando_personas", "esperando_nombre", "esperando_detalles"
@@ -52,6 +62,9 @@ def generate_bot_response(user_input, session_id, memory):
         else:
             # Si no hay reserva, mostramos una despedida genérica
             return random.choice(despedidas_sin_reserva)
+        
+        
+        
    # --- Manejo de afirmaciones "sí" ---
     if user_input in afirmaciones:
         if estado == "ofrecido_menu":
@@ -61,31 +74,50 @@ def generate_bot_response(user_input, session_id, memory):
             return "¿Puedes especificar si quieres ver el menú o hacer una reserva?"  # Preguntamos si desea menú o reserva
         else:
             return "Vale, dime más detalles por favor."
-    # --- Flujo principal: Manejo de solicitudes del usuario ---
+        
+    # --- Manejo de ubicación ---  
+    if any(palabra in user_input.lower() for palabra in ['ubicación', 'ubicacion', 'lugar', 'dónde', 'donde']):
+        return ubicación
+        
+        
+        
+    # --- FLUJO PRINCIPAL: Manejo de solicitudes del usuario ---
+    
     # Si el usuario menciona "menú", se le ofrece el menú
     if "menu" in user_input:
         memory[session_id]["estado"] = "ofrecido_menu"  # Actualizamos el estado a "ofrecido_menu"
         return "�� Aquí tienes el menú: - Ensalada mixta - Pizza margarita - Pasta carbonara - Tarta de queso. ¿Quieres hacer una reserva?"
+    
    # Si el usuario menciona "reserva", comenzamos el flujo de reserva
     if "reserva" in user_input:
         memory[session_id]["estado"] = "esperando_dia"  # Actualizamos el estado a "esperando_dia"
         return "Perfecto. ¿Para qué día quieres hacer la reserva?"
-   # --- Flujos pendientes: fecha, personas, nombre, detalles, etc. ---
+    
+   # --- Flujo reserva---
     # Si estamos esperando una fecha, guardamos la fecha y preguntamos por el número de personas
     if estado == "esperando_dia":
         memory[session_id]["estado"] = "esperando_personas"
         memory[session_id]["fecha"] = user_input
         return "¿Para cuántas personas será la reserva?"
+    
    # Si estamos esperando el número de personas, lo guardamos y preguntamos por el nombre
     if estado == "esperando_personas":
         memory[session_id]["estado"] = "esperando_nombre"
         memory[session_id]["personas"] = user_input
         return "¿A nombre de quién estará la reserva?"
-   # Si estamos esperando el nombre, lo guardamos y preguntamos por detalles adicionales
+    
+ # Si estamos esperando el nombre, lo guardamos y preguntamos por las preferencias
     if estado == "esperando_nombre":
-        memory[session_id]["estado"] = "esperando_detalles"
+        memory[session_id]["estado"] = "esperando_preferencias"
         memory[session_id]["nombre"] = user_input
+        return "¿Desea una reserva en nuestra zona de patio o en el interior?"
+    
+   # Si estamos esperando preferencias las guardamos y preguntamos por los detalles de la reserva
+    if estado == "esperando_preferencias":
+        memory[session_id]["estado"] = "esperando_detalles"
+        memory[session_id]["preferencias"] = user_input
         return "¿Hay algo que debamos tener en cuenta? Alergias, niños, etc."
+    
    # Si estamos esperando detalles, completamos la reserva y mostramos un resumen
     if estado == "esperando_detalles":
         memory[session_id]["estado"] = "reserva_completa"
@@ -94,14 +126,16 @@ def generate_bot_response(user_input, session_id, memory):
             "dia": memory[session_id].get("fecha"),
             "personas": memory[session_id].get("personas"),
             "nombre": memory[session_id].get("nombre"),
+            "preferencias": memory[session_id].get("preferencias"),
             "detalles": memory[session_id].get("detalles")
         }
        # Resumen de la reserva y una respuesta final
         return (
-            f"Reserva completa para {memory[session_id]['personas']} personas el {memory[session_id]['fecha']}, "
+            f"Reserva completa para {memory[session_id]['personas']} personas el {memory[session_id]['fecha']} en {memory[session_id]['preferencias']}  "
             f"a nombre de {memory[session_id]['nombre']}. Detalles: {memory[session_id]['detalles']}.\n"
             "¿Deseas hacer otra cosa?"
         )
+        
    # Si no se detecta ninguna de las condiciones anteriores, respondemos con un saludo inicial aleatorio
     return random.choice(saludos_iniciales)
 
