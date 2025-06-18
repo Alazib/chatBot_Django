@@ -3,6 +3,9 @@
 Este proyecto es un **chatbot básico desarrollado con Django** que utiliza **procesamiento de lenguaje natural (PLN)** para gestionar reservas en un restaurante.  
 El chatbot es capaz de entender entradas en lenguaje natural, procesar fechas, cantidades de personas y otros datos relevantes mediante el uso de la librería **spaCy**.
 
+![Interfaz del chatbot](assets/Chatbot1.PNG)
+
+
 ---
 
 ## 🚀 Instrucciones de Instalación y Ejecución
