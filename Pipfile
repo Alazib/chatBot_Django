@@ -10,6 +10,7 @@ spacy = "*"
 numpy = "*"
 psycopg2 = "*"
 pillow = "*"
+django-jazzmin = "*"
 
 [dev-packages]
 

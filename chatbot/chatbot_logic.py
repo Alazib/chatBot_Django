@@ -1,141 +1,139 @@
-# Importación de funciones necesarias
-from .nlp_utils import detectar_intencion, extraer_fecha, es_afirmacion
-import random  # Importamos la librería random para seleccionar respuestas aleatorias
-# Definimos algunas respuestas iniciales para saludar al usuario
-saludos_iniciales = [
-    "Hola �� ¿Quieres ver el menú o hacer una reserva?",
-    "¡Bienvenido! �� ¿Te muestro el menú o prefieres reservar?",
-    "Hola, ¿en qué puedo ayudarte hoy? ¿Menú o reserva?",
-    "¡Hola! �� ¿Deseas consultar el menú o hacer una reserva?"
-]
-# Respuestas de despedida cuando se ha realizado una reserva
-despedidas_reserva = [
-    "¡Gracias por tu visita! �� Que tengas un buen día.",
-    "¡Reserva anotada! Disfruta tu jornada ��",
-    "Perfecto, nos vemos el día acordado. ¡Cuídate!",
-    "¡Todo listo! Te esperamos con gusto. ��"
-]
-# Respuestas de despedida cuando no se ha realizado una reserva
-despedidas_sin_reserva = [
-    "¡Gracias por tu visita! �� Que tengas un buen día.",
-    "¡Hasta la próxima! ��",
-    "Encantado de ayudarte. ¡Nos vemos!",
-    "Que tengas un buen día. ¡Adiós!"
-]
+import logging
+from datetime import datetime
+from .models import Reserva
+import dateparser
+from .nlp_utils import detectar_intencion, extraer_fecha, es_afirmacion, extraer_personas, limpiar_y_validar_telefono, normalizar_mensaje
+import re
 
-# Respuesta a ubicación
-ubicación = "Calle Inventada, Nº12. Madrid"
+# Configura el logger
+logger = logging.getLogger("chatbot")
+logger.setLevel(logging.DEBUG)
+
+# Estados como constantes
+STATE_SALUDO = 'saludo'
+STATE_VER_MENU = 'ver_menu'
+STATE_RESERVA = 'reserva'
+STATE_NOMBRE = 'nombre'
+STATE_FECHA = 'fecha'
+STATE_PERSONAS = 'personas'
+STATE_ALERGIAS = 'alergias'
+STATE_TELEFONO = 'telefono'
+STATE_CONFIRMACION = 'confirmacion'
+STATE_DESPEDIDA = 'despedida'
+
+def generate_bot_response(user_message, session_id, session_memory):
+    try:        
+        message_content = normalizar_mensaje(user_message, session_id, logger)
+        logger.debug(f"[{session_id}] Contenido normalizado: {message_content} | Tipo: {type(message_content)}")
+
+        state = session_memory.get('state', STATE_SALUDO)
+        #logger.debug(f"[{session_id}] Estado actual: {state} | Mensaje recibido: {user_message}")
+        logger.debug(f"[{session_id}] Estado actual: {state} | Input: {message_content} | Memoria: {session_memory}")
+        responses = {
+            STATE_SALUDO: "¡Bienvenido! ¿Deseas ver nuestro menú o prefieres hacer una reserva?",
+            STATE_VER_MENU: "Aquí tienes nuestro menú. ¿Quieres reservar una mesa ahora?",
+            STATE_RESERVA: "Perfecto, comencemos con tu reserva. ¿Cómo te llamas?",
+            STATE_FECHA: "Gracias {nombre}. ¿Para qué día te gustaría reservar? (Por ejemplo: 'mañana', '15 de julio')",
+            STATE_PERSONAS: "Entendido. ¿Para cuántas personas será la reserva? (Máximo 25 personas)",
+            STATE_ALERGIAS: "¿Algún comensal tiene alergias alimentarias o necesidades especiales que debamos conocer?",
+            STATE_TELEFONO: "Necesitamos un número de contacto para confirmar tu reserva (9 dígitos, por ejemplo: 612345678)",
+            STATE_CONFIRMACION: "✅ Reserva confirmada! ¿Necesitas algo más?",
+            STATE_DESPEDIDA: "¡Gracias por elegirnos! Esperamos verte pronto. ¡Buen día!"
+}
+        if state == STATE_SALUDO:
+            if 'menu' in message_content.lower():
+                session_memory['state'] = STATE_VER_MENU
+                return responses[STATE_VER_MENU]
+            elif 'reserva' in message_content.lower() or es_afirmacion(message_content):
+                session_memory['state'] = STATE_RESERVA
+                return responses[STATE_RESERVA]
+            return responses[STATE_SALUDO]
+
+        elif state == STATE_VER_MENU:
+            if 'reserva' in message_content.lower() or es_afirmacion(message_content):
+                session_memory['state'] = STATE_RESERVA
+                print(f"[{session_id}] PAsa a Reserva??: {message_content}")
+                return responses[STATE_RESERVA]
+                
+            return responses[STATE_VER_MENU]
+
+        elif state == STATE_RESERVA:
+            print(f"[{session_id}] Estado user_message: {message_content}")
+            session_memory['nombre'] = message_content
+            nombre= session_memory['nombre']
+            session_memory['state'] = STATE_FECHA
+            return f"Gracias {nombre}. ¿Para qué día te gustaría reservar? (Por ejemplo: 'mañana', '15 de julio')"#responses[STATE_FECHA]
+
+
+        elif state == STATE_FECHA:
+            
+            valido, fecha = extraer_fecha(message_content)
+            if not valido:
+                logger.warning(f"[{session_id}] Fecha inválida: {message_content}")
+                return "No entendí la fecha. Por favor usa un formato como '10 de mayo' o 'próximo lunes'"
     
+            #session_memory['fecha'] = fecha
+            session_memory['fecha'] = fecha.isoformat()  # o .strftime("%Y-%m-%d")
+            print(f"[{session_id}] Fecha válida: {message_content}")
+            session_memory['state'] = STATE_PERSONAS  # Pasar a personas después de fecha válida
+            return responses[STATE_PERSONAS]  # "Perfecto, ¿Cuántas personas asistirán?"
 
-
-
-# Función principal para gestionar las respuestas del chatbot
-def generate_bot_response(user_input, session_id, memory):
-   
-    user_input = user_input.lower().strip()  # Normalizamos la entrada del usuario a minúsculas y eliminamos espacios innecesarios
-    # Inicializamos la memoria de la sesión si es la primera vez que interactúan
-    if session_id not in memory:
-        memory[session_id] = {"estado": "inicio"}  # Si no existe la sesión, comenzamos en el estado "inicio"
-    estado = memory[session_id]["estado"]  # Recuperamos el estado actual de la conversación
-   # Definimos las posibles afirmaciones y despedidas que el bot puede reconocer
-    afirmaciones = ["sí", "si", "claro", "por supuesto", "vale", "ok"]
-    despedidas = ["adiós", "adios", "hasta luego", "nos vemos", "chao", "chau", "bye", "no gracias", "no, gracias", "no"]
+        elif state == STATE_PERSONAS:  # Nuevo bloque para manejar número de personas
+            valido, personas = extraer_personas(message_content)
+            if not valido:
+                return "Por favor indica un número entre 1 y 25 personas"
     
-    
-       # --- Manejo de despedidas ---
-    # Verificamos si el usuario ha solicitado despedirse
-    # Sólo permitimos despedidas si no estamos en medio de una reserva
-    if user_input.lower() in despedidas and estado not in [
-        "esperando_dia", "esperando_personas", "esperando_nombre", "esperando_detalles"
-    ]:
-        memory[session_id]["estado"] = "despedida"  # Cambiamos el estado a "despedida"
-        reserva = memory[session_id].get("reserva", {})  # Recuperamos la reserva si existe
-       # Si existe una reserva, mostramos un resumen de la misma
-        if reserva:
-            resumen = (
-                f"Reserva para {reserva.get('personas')} personas el {reserva.get('dia')}, "
-                f"a nombre de {reserva.get('nombre')}. Detalles: {reserva.get('detalles', 'ninguno')}."
+            session_memory['personas'] = personas
+            session_memory['state'] = STATE_ALERGIAS
+            return responses[STATE_ALERGIAS]
+
+        elif state == STATE_ALERGIAS:
+            session_memory['alergias'] = message_content
+            session_memory['state'] = STATE_TELEFONO
+            return responses[STATE_TELEFONO]
+
+        elif state == STATE_TELEFONO:
+            valido, telefono = limpiar_y_validar_telefono(message_content)
+            if valido:
+                session_memory['telefono'] = telefono
+                session_memory['state'] = STATE_CONFIRMACION
+                return responses[STATE_CONFIRMACION]
+            else:
+                return "Por favor, proporciona un número de teléfono válido."
+
+        elif state == STATE_CONFIRMACION:
+            nombre = session_memory.get('nombre', 'Anónimo')
+            #fecha = session_memory.get('fecha')
+            numero_personas = session_memory.get('personas')
+            alergias = session_memory.get('alergias', '')
+            telefono = session_memory.get('telefono')
+
+            #fecha_str = fecha.strftime("%d/%m/%Y %H:%M") if fecha else "Fecha no proporcionada"
+            fecha_str = session_memory.get('fecha')
+            fecha_dt = datetime.fromisoformat(fecha_str) if fecha_str else None
+            fecha_str = fecha_dt.strftime("%d/%m/%Y %H:%M") if fecha_dt else "Fecha no proporcionada"
+
+            # Crear la reserva en la base de datos
+            Reserva.objects.create(
+                nombre=nombre,
+                fecha=fecha_dt,
+                numero_personas=numero_personas,
+                alergias=alergias,
+                telefono=telefono,
             )
-            # Seleccionamos una despedida con el resumen de la reserva
-            mensaje = random.choice(despedidas_reserva).format(resumen=resumen)
-            return mensaje
-        else:
-            # Si no hay reserva, mostramos una despedida genérica
-            return random.choice(despedidas_sin_reserva)
-        
-        
-        
-   # --- Manejo de afirmaciones "sí" ---
-    if user_input in afirmaciones:
-        if estado == "ofrecido_menu":
-            memory[session_id]["estado"] = "esperando_dia"  # Si ya se ofreció el menú, preguntamos por la fecha
-            return "Genial. ¿Para qué día quieres la reserva?"
-        elif estado == "inicio":
-            return "¿Puedes especificar si quieres ver el menú o hacer una reserva?"  # Preguntamos si desea menú o reserva
-        else:
-            return "Vale, dime más detalles por favor."
-        
-    # --- Manejo de ubicación ---  
-    if any(palabra in user_input.lower() for palabra in ['ubicación', 'ubicacion', 'lugar', 'dónde', 'donde']):
-        return ubicación
-        
-        
-        
-    # --- FLUJO PRINCIPAL: Manejo de solicitudes del usuario ---
-    
-    # Si el usuario menciona "menú", se le ofrece el menú
-    if "menu" in user_input:
-        memory[session_id]["estado"] = "ofrecido_menu"  # Actualizamos el estado a "ofrecido_menu"
-        return "�� Aquí tienes el menú: - Ensalada mixta - Pizza margarita - Pasta carbonara - Tarta de queso. ¿Quieres hacer una reserva?"
-    
-   # Si el usuario menciona "reserva", comenzamos el flujo de reserva
-    if "reserva" in user_input:
-        memory[session_id]["estado"] = "esperando_dia"  # Actualizamos el estado a "esperando_dia"
-        return "Perfecto. ¿Para qué día quieres hacer la reserva?"
-    
-   # --- Flujo reserva---
-    # Si estamos esperando una fecha, guardamos la fecha y preguntamos por el número de personas
-    if estado == "esperando_dia":
-        memory[session_id]["estado"] = "esperando_personas"
-        memory[session_id]["fecha"] = user_input
-        return "¿Para cuántas personas será la reserva?"
-    
-   # Si estamos esperando el número de personas, lo guardamos y preguntamos por el nombre
-    if estado == "esperando_personas":
-        memory[session_id]["estado"] = "esperando_nombre"
-        memory[session_id]["personas"] = user_input
-        return "¿A nombre de quién estará la reserva?"
-    
- # Si estamos esperando el nombre, lo guardamos y preguntamos por las preferencias
-    if estado == "esperando_nombre":
-        memory[session_id]["estado"] = "esperando_preferencias"
-        memory[session_id]["nombre"] = user_input
-        return "¿Desea una reserva en nuestra zona de patio o en el interior?"
-    
-   # Si estamos esperando preferencias las guardamos y preguntamos por los detalles de la reserva
-    if estado == "esperando_preferencias":
-        memory[session_id]["estado"] = "esperando_detalles"
-        memory[session_id]["preferencias"] = user_input
-        return "¿Hay algo que debamos tener en cuenta? Alergias, niños, etc."
-    
-   # Si estamos esperando detalles, completamos la reserva y mostramos un resumen
-    if estado == "esperando_detalles":
-        memory[session_id]["estado"] = "reserva_completa"
-        memory[session_id]["detalles"] = user_input
-        memory[session_id]["reserva"] = {
-            "dia": memory[session_id].get("fecha"),
-            "personas": memory[session_id].get("personas"),
-            "nombre": memory[session_id].get("nombre"),
-            "preferencias": memory[session_id].get("preferencias"),
-            "detalles": memory[session_id].get("detalles")
-        }
-       # Resumen de la reserva y una respuesta final
-        return (
-            f"Reserva completa para {memory[session_id]['personas']} personas el {memory[session_id]['fecha']} en {memory[session_id]['preferencias']}  "
-            f"a nombre de {memory[session_id]['nombre']}. Detalles: {memory[session_id]['detalles']}.\n"
-            "¿Deseas hacer otra cosa?"
-        )
-        
-   # Si no se detecta ninguna de las condiciones anteriores, respondemos con un saludo inicial aleatorio
-    return random.choice(saludos_iniciales)
 
+            logger.info(f"[{session_id}] Reserva confirmada para {numero_personas} personas.")
+
+            session_memory.clear()
+            session_memory['state'] = STATE_SALUDO
+            return f"¡Gracias! Tu reserva para {numero_personas} personas ha sido confirmada para el {fecha_str}."
+
+        elif state == STATE_DESPEDIDA:
+            return responses[STATE_DESPEDIDA]
+
+        return "Lo siento, no entiendo esa solicitud."
+
+    except Exception as e:
+        logger.exception(f"[{session_id}] Error en el procesamiento del mensaje: {e}")
+        session_memory['state'] = STATE_SALUDO
+        return "Algo salió mal procesando tu mensaje. ¿Podrías intentarlo de nuevo?"
